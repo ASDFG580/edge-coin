@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: edge-coin
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

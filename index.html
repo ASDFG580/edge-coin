@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#05090b">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='27' fill='%23ffd166'/%3E%3Ccircle cx='32' cy='32' r='21' fill='none' stroke='%235b3b0d' stroke-width='2'/%3E%3Ccircle cx='32' cy='32' r='9' fill='%235b3b0d'/%3E%3C/svg%3E">
+  <title>出界硬币 · EDGE COIN</title>
+  <meta name="description" content="一款俯视角弹硬币游戏。瞄准、蓄力、撞击，把对手全部送出边界，成为桌上最后一枚硬币。">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="stage">
+    <canvas id="game-canvas" aria-label="出界硬币游戏场地"></canvas>
+    <div class="screen-grain" aria-hidden="true"></div>
+    <div class="screen-vignette" aria-hidden="true"></div>
+
+    <div id="hud" class="hud" aria-hidden="true" inert>
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span>
+          </span>
+          <div class="brand-type">
+            <strong>EDGE<span>//</span>COIN</strong>
+            <small>出界硬币</small>
+          </div>
+        </div>
+
+        <div class="live-chip">
+          <span class="live-dot"></span>
+          <span id="liveLabel">第 1 回合</span>
+          <span class="live-divider"></span>
+          <span id="arenaLabel">圆桌 100%</span>
+          <span class="live-divider"></span>
+          <span id="aliveLabel">4 枚在场</span>
+        </div>
+
+        <div class="top-actions">
+          <button class="icon-btn ai-persona-btn" id="aiPersonaBtn" type="button" aria-label="查看 AI 性格" title="查看 AI 性格" hidden>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M9 17h6"/><path d="M12 3v4"/></svg>
+          </button>
+          <button class="icon-btn quit-game-btn" id="quitGameBtn" type="button" aria-label="退出对局" title="退出对局" hidden>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4"/><path d="M18 12H9"/></svg>
+          </button>
+          <button class="icon-btn online-exit-btn" id="onlineExitBtn" type="button" aria-label="离开联机" title="离开联机" hidden>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4"/><path d="M18 12H9"/></svg>
+          </button>
+          <button class="icon-btn" id="soundToggle" type="button" aria-label="关闭声音" title="声音 (M)">
+            <svg class="icon icon-sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 8.5a5 5 0 0 1 0 7"/><path d="M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
+            <svg class="icon icon-sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="m17 9 5 5m0-5-5 5"/></svg>
+          </button>
+          <button class="icon-btn" id="fullscreenToggle" type="button" aria-label="全屏" title="全屏 (F)">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+          </button>
+          <button class="icon-btn" id="restartBtn" type="button" aria-label="重新开局" title="重新开局 (R)">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+          </button>
+          <button class="icon-btn" id="helpBtn" type="button" aria-label="玩法说明" title="玩法说明 (H)">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 .9-1 1.6v.4"/><path d="M12 17h.01"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div id="shotClockBig" class="shot-clock-big" hidden aria-live="polite">
+        <span class="shot-clock-big-label" id="shotClockBigLabel">发射倒计时</span>
+        <strong id="shotClockBigValue">15</strong>
+        <small>秒</small>
+        <i class="shot-clock-big-bar" aria-hidden="true"><b id="shotClockBigFill"></b></i>
+      </div>
+
+      <aside class="roster" aria-label="硬币状态">
+        <div class="roster-head">
+          <span>桌上硬币</span>
+          <span class="roster-head-right">
+            <span id="rosterCount">4 / 4</span>
+            <button class="roster-inspect" id="rosterInspectBtn" type="button" title="查看硬币 (C)">查看</button>
+            <button class="roster-hide" id="rosterHideBtn" type="button" aria-label="隐藏桌上硬币" title="隐藏桌上硬币">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.7 10.7 0 0 1 12 5c5.5 0 9 7 9 7a17.4 17.4 0 0 1-2.2 3.1"/><path d="M6.2 6.8A17.7 17.7 0 0 0 3 12s3.5 7 9 7a10.8 10.8 0 0 0 4.2-.9"/></svg>
+            </button>
+          </span>
+        </div>
+        <div id="rosterList"></div>
+      </aside>
+      <button class="roster-show" id="rosterShowBtn" type="button" hidden aria-label="显示桌上硬币" title="显示桌上硬币">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+        <span>桌上硬币</span><b id="rosterShowCount">4</b>
+      </button>
+
+      <aside class="telemetry" aria-label="对局数据">
+        <div class="telemetry-row">
+          <span>碰撞</span>
+          <strong id="hitCounter">00</strong>
+        </div>
+        <div class="telemetry-row">
+          <span>最高速</span>
+          <strong id="speedCounter">0</strong>
+        </div>
+        <div class="telemetry-row">
+          <span>用时</span>
+          <strong id="timeCounter">00:00</strong>
+        </div>
+        <div class="telemetry-row">
+          <span id="difficultyLabel">AI 难度</span>
+          <strong id="difficultyCounter">标准</strong>
+        </div>
+      </aside>
+
+      <div class="zoom-box" aria-label="视角缩放">
+        <button class="zoom-btn" id="zoomOut" type="button" aria-label="缩小">−</button>
+        <div class="zoom-value">
+          <span id="zoomValue">100%</span>
+          <small>滚轮·方向键</small>
+        </div>
+        <button class="zoom-btn" id="zoomIn" type="button" aria-label="放大">+</button>
+      </div>
+
+      <div id="toastLayer" class="toast-layer" aria-live="polite"></div>
+      <div id="comboBadge" class="combo-badge"><span>连锁</span><strong>×2</strong></div>
+
+      <section class="turn-dock" id="turnDock" aria-live="polite">
+        <div id="skillBadge" class="skill-badge" hidden>
+          <span class="skill-badge-icon" id="skillBadgeIcon" aria-hidden="true">↩</span>
+          <span class="skill-badge-copy">
+            <small class="skill-badge-kicker" id="skillBadgeKicker">本命技能</small>
+            <strong id="skillBadgeName">折返</strong>
+            <span class="skill-badge-hint" id="skillBadgeHint">E 留标</span>
+          </span>
+          <kbd class="skill-badge-key" id="skillBadgeKey">E</kbd>
+          <div id="curveEnergy" class="curve-energy" hidden>
+            <span>能量</span>
+            <i class="curve-energy-track"><b id="curveEnergyFill"></b></i>
+            <strong id="curveEnergyValue">100</strong>
+          </div>
+        </div>
+        <div class="turn-copy">
+          <span class="turn-kicker" id="turnKicker">你的回合</span>
+          <h2 id="turnTitle">瞄准，然后按住左键</h2>
+          <p id="turnHint">鼠标指向决定方向 · 蓄力越久，发射越猛</p>
+        </div>
+        <div class="power-cluster">
+          <div class="power-meta">
+            <span id="powerLabel">力度</span>
+            <span id="shotClock" class="shot-clock" hidden><b id="shotClockValue">15</b><small>s</small></span>
+            <strong id="powerValue">0%</strong>
+          </div>
+          <div class="power-track" id="powerTrack">
+            <div class="power-fill" id="powerFill"></div>
+            <div class="power-ticks" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+          </div>
+          <div class="power-scale" aria-hidden="true"><span>轻触</span><span>全力</span></div>
+          <div id="chaseStatus" class="chase-status" hidden>
+            <div id="chaseHearts" class="chase-hearts" aria-label="生命值"></div>
+            <div class="chase-status-grid">
+              <span><small>出口</small><strong id="chaseExit">--</strong></span>
+              <span><small id="chaseMoveLabel">起步</small><strong id="chaseMove">0/3</strong></span>
+            </div>
+            <div class="chase-power">
+              <span>弹射力度</span>
+              <i><b id="chasePowerFill"></b></i>
+              <small id="chasePowerText">0%</small>
+            </div>
+            <p id="chaseEnemyNote">追兵待命</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="control-foot">
+        <span><kbd>LMB</kbd> 蓄力 / 发射</span>
+        <span><kbd>E</kbd> 技能</span>
+        <span><kbd>滚轮</kbd> 缩放</span>
+        <span><kbd>方向键</kbd> 平移视角</span>
+        <span><kbd>R</kbd> 重开</span>
+      </div>
+    </div>
+
+    <section id="menuScreen" class="menu-screen">
+      <div class="menu-shade" aria-hidden="true"></div>
+      <header class="menu-top">
+        <div class="mini-brand">
+          <span class="brand-mark" aria-hidden="true"><span></span></span>
+          <span>EDGE//COIN <i>出界硬币</i></span>
+        </div>
+        <div class="menu-top-meta">
+          <span><i class="status-pip"></i> 单机 · 1P</span>
+          <span>俯视角物理竞技</span>
+        </div>
+      </header>
+
+      <div class="menu-grid">
+        <div class="menu-main">
+          <div class="menu-eyebrow"><span></span> LAST COIN STANDING</div>
+          <h1 class="hero-title" aria-label="出界硬币">
+            <span class="hero-cn">出界<em>硬币</em></span>
+            <span class="hero-en" aria-hidden="true">EDGE<br>COIN</span>
+          </h1>
+          <p class="hero-lede">
+            桌面就是战场，边界之外只有深渊。<br>
+            瞄准，蓄力，把其他硬币全部送出去。
+          </p>
+          <div class="menu-actions">
+            <button id="startBtn" class="primary-btn" type="button">
+              <span>以金乌出战</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+            <button id="menuHelpBtn" class="ghost-btn" type="button">玩法说明</button>
+            <button id="onlineBtn" class="ghost-btn online-launch" type="button" aria-haspopup="dialog" aria-controls="onlineScreen">
+              <span class="online-dot" aria-hidden="true"></span>
+              <span>联机</span>
+            </button>
+            <button id="arenaBtn" class="ghost-btn arena-launch" type="button" aria-haspopup="dialog" aria-controls="arenaScreen">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 12 12 21 3 12Z"/><circle cx="12" cy="12" r="2.2"/></svg>
+              <span id="arenaBtnLabel">场地 · 圆桌 100%</span>
+            </button>
+          </div>
+
+          <div class="control-cards" aria-label="操作方式">
+            <article>
+              <div class="control-icon aim-icon" aria-hidden="true"><span></span></div>
+              <div><strong>移动鼠标</strong><small>决定发射方向</small></div>
+            </article>
+            <article>
+              <div class="control-icon hold-icon" aria-hidden="true"><span></span></div>
+              <div><strong>按住左键</strong><small>蓄力后松开发射</small></div>
+            </article>
+            <article>
+              <div class="control-icon wheel-icon" aria-hidden="true"><span></span></div>
+              <div><strong>滚轮 / 方向键</strong><small>缩放 / 平移视角</small></div>
+            </article>
+          </div>
+        </div>
+
+        <aside class="menu-aside">
+          <div class="coin-lineup" aria-label="对局设置">
+            <div class="lineup-head">
+              <span>MATCH SETUP</span>
+              <span>对局设置</span>
+            </div>
+
+            <button id="selectedCoinBtn" class="selected-coin" type="button" aria-haspopup="dialog" aria-controls="codexScreen">
+              <span class="selected-orb" id="selectedOrb" aria-hidden="true"><b id="selectedGlyph">●</b><i></i></span>
+              <span class="selected-info">
+                <small>你的硬币</small>
+                <strong id="selectedCoinName">金乌</strong>
+                <em id="selectedCoinRole">均衡 · BALANCED</em>
+              </span>
+              <span class="selected-action">图鉴 / 更换 <i>→</i></span>
+            </button>
+            <p class="selected-skill"><span>SKILL</span><strong id="selectedSkillName">熔芯</strong><em id="selectedSkillShort">蓄力 ≥75% 初速 +8%</em></p>
+
+            <div class="lineup-divider" aria-hidden="true"></div>
+
+            <div class="match-size-block">
+              <div class="difficulty-head"><span>参战硬币</span><small id="matchSizeCapLabel">2 – 8 COINS</small></div>
+              <div id="matchSizeSwitch" class="size-switch" role="group" aria-label="参战硬币数量">
+                <button data-size="2" type="button" aria-pressed="false">2</button>
+                <button data-size="3" type="button" aria-pressed="false">3</button>
+                <button data-size="4" class="is-active" type="button" aria-pressed="true">4</button>
+                <button data-size="5" type="button" aria-pressed="false">5</button>
+                <button data-size="6" type="button" aria-pressed="false">6</button>
+                <button data-size="7" type="button" aria-pressed="false">7</button>
+                <button data-size="8" type="button" aria-pressed="false">8</button>
+              </div>
+              <div id="matchSizeRangeBlock" class="match-size-range-block" hidden>
+                <div class="match-size-range-meta"><span>齐射上限</span><strong id="matchSizeRangeValue">8</strong><small>2 – 24</small></div>
+                <input id="matchSizeRange" type="range" min="2" max="24" step="1" value="8" aria-label="齐射参战硬币数量">
+              </div>
+              <p id="matchSizeNote" class="difficulty-note">4 枚硬币 · 你 + 3 AI</p>
+            </div>
+
+            <div class="mode-block">
+              <div class="difficulty-head"><span>对局模式</span><small>MODE</small></div>
+              <div id="modeSwitch" class="mode-switch" role="group" aria-label="对局模式">
+                <button data-mode="turn" class="is-active" type="button" aria-pressed="true">轮流</button>
+                <button data-mode="volley" type="button" aria-pressed="false">齐射</button>
+                <button data-mode="chase" type="button" aria-pressed="false">追击</button>
+              </div>
+              <p id="modeNote" class="difficulty-note">轮流出手 · 每局发射顺序随机</p>
+              <div id="chaseHpBlock" class="chase-hp-block" hidden>
+                <div class="difficulty-head"><span>生命值</span><small>1 – 5 HP</small></div>
+                <div id="chaseHpSwitch" class="size-switch" role="group" aria-label="追击模式生命值">
+                  <button data-hp="1" type="button" aria-pressed="false">1</button>
+                  <button data-hp="2" type="button" aria-pressed="false">2</button>
+                  <button data-hp="3" class="is-active" type="button" aria-pressed="true">3</button>
+                  <button data-hp="4" type="button" aria-pressed="false">4</button>
+                  <button data-hp="5" type="button" aria-pressed="false">5</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="lineup-divider" aria-hidden="true"></div>
+
+            <div class="difficulty-block">
+              <div class="difficulty-head"><span>AI 难度</span><small>DIFFICULTY</small></div>
+              <div id="difficultySwitch" class="difficulty-switch" role="group" aria-label="AI 难度">
+                <button class="difficulty-btn" data-difficulty="easy" type="button" aria-pressed="false">轻松</button>
+                <button class="difficulty-btn is-active" data-difficulty="normal" type="button" aria-pressed="true">标准</button>
+                <button class="difficulty-btn" data-difficulty="hard" type="button" aria-pressed="false">困难</button>
+              </div>
+              <p id="difficultyNote" class="difficulty-note">标准 · AI 会认真瞄准，但偶尔失手。</p>
+            </div>
+
+            <div class="personality-pool-block">
+              <div class="difficulty-head"><span>AI 性格池</span><small>PERSONALITIES</small></div>
+              <button id="personalityPoolBtn" class="personality-pool-btn" type="button">
+                <span id="personalityPoolSummary">全部 8 种</span>
+                <em>配置 <i>→</i></em>
+              </button>
+              <p id="personalityPoolNote" class="difficulty-note">每名 AI 从启用的性格中随机获得，允许重复。</p>
+            </div>
+          </div>
+          <div class="rule-stack">
+            <div class="rule-row"><span>01</span><p>2–8 枚硬币可轮流出手；齐射支持 2–24 枚。<strong>中心越过边界即出局</strong>，没有第二次机会。</p></div>
+            <div class="rule-row"><span>02</span><p>金属碰撞会传递动量。每枚硬币都有专属能力，<strong>角度与技能时机同样重要</strong>。</p></div>
+            <div class="rule-row"><span>03</span><p>活到最后即可获胜。高速撞击会触发火花、冲击波与短暂慢镜头。</p></div>
+          </div>
+          <div class="menu-tip" id="menuTip"><span>TIP</span> <em id="menuTipText">把力度压在高温区，用一记更远的直线穿过桌面。</em></div>
+        </aside>
+      </div>
+
+      <footer class="menu-foot">
+        <span>© 2026 EDGE COIN LAB</span>
+        <span class="menu-foot-center">鼠标 + 键盘 · 无需安装</span>
+        <span>BUILD 2.21.0</span>
+      </footer>
+    </section>
+
+    <section id="helpScreen" class="modal-screen" aria-hidden="true">
+      <div class="modal-backdrop" data-close="help"></div>
+      <div class="modal-card help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <button class="modal-close" id="helpClose" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <div class="modal-kicker">HOW TO PLAY</div>
+        <h2 id="helpTitle">留在桌上。</h2>
+        <p class="modal-lede">你只需要记住一件事：边界之外，没有硬币能回来。开始前可打开图鉴选择角色，设置 2–8 枚参战硬币（单机齐射最高 24 枚）、轮流 / 齐射 / 追击模式、AI 难度，并调整战场规则。</p>
+
+        <div class="help-grid">
+          <article>
+            <span class="help-num">01</span>
+            <h3>瞄准</h3>
+            <p>将鼠标移向目标方向，硬币周围会出现虚线预测线。普通模式松开发射；齐射模式松开左键只是锁定，等所有硬币锁定后同时发射。单机齐射最多 24 枚硬币，类型允许重复。</p>
+          </article>
+          <article>
+            <span class="help-num">02</span>
+            <h3>蓄力</h3>
+            <p>按住鼠标左键开始蓄力，力度条会填充。松开左键发射；右键或 <kbd>Esc</kbd> 取消。</p>
+          </article>
+          <article>
+            <span class="help-num">03</span>
+            <h3>撞击</h3>
+            <p>碰撞会传递动量并产生火花与冲击波。每枚硬币都有专属能力；边缘还可以设为墙壁。流萤滑行时按住 <kbd>Q</kbd> 向左偏转、按住 <kbd>E</kbd> 向右偏转，每秒消耗 5 点能量，偏转时会留下明亮的青绿色拖尾。锚星滑行中按 <kbd>E</kbd> 会立刻急停并进入第二次瞄准，二次发射后回合结束，技能冷却 4 回合。场地可加入固定反弹障碍和可推动障碍：后者会被硬币撞走，并在滑动时撞开其他硬币。支持圆形、方形、长方形、三角；勾选「手动摆放」后可在预览中拖动位置并用滑杆单独调整大小和旋转。取消「启用障碍物」即可完全不生成。障碍物用于本地与联机轮流 / 齐射，联机由房主设置。轮流模式下，未发射过的硬币带首发保护，不会被撞飞，并会把来球弹回去。</p>
+          </article>
+          <article>
+            <span class="help-num">04</span>
+            <h3>观察</h3>
+            <p>点击硬币名单或按 <kbd>C</kbd> 可暂停查看任意硬币技能。名单右上角可以隐藏「桌上硬币」UI，隐藏后左上角会保留恢复按钮。菜单中的 AI 性格池可勾选本局允许出现的 AI 性格，至少保留一种。超过回合上限后边界会逐回合收缩；出局后仍可观战到冠军诞生。右上角的退出按钮可以在所有单机模式中返回主菜单，AI 性格按钮可在普通对战中查看每名 AI 的性格。</p>
+          </article>
+          <article>
+            <span class="help-num">05</span>
+            <h3>联机</h3>
+            <p>主菜单点「联机」创建房间，最多 8 个位置；房主可在房间里切换轮流 / 齐射、修改地图与障碍物、给空位添加 AI，未满 8 人也能开始。玩家点击自己位置上的「换硬币」即可更换硬币，房主也能更换 AI 的硬币；已被占用的硬币不可选。AI 性格由房主分配并同步，所有玩家都能查看。人类发射/锁定有 15 秒大倒计时，超时会跳过；轮流模式超时会解除首发保护。创建后会自动复制邀请链接，朋友点开即可自动加入。</p>
+          </article>
+          <article>
+            <span class="help-num">06</span>
+            <h3>追击</h3>
+            <p>本地圆形迷宫玩法：用鼠标瞄准、按住左键蓄力、松开弹射；弹射 3 次后 1–7 名追兵苏醒。追兵只在玩家停稳后齐射一次，滑行期间会停火。追兵拥有猎手、侧翼、伏击、截断、游猎等角色。被撞损失 1 点生命，生命归零失败；找到迷宫出口即可逃出。追兵暂不支持联机。</p>
+          </article>
+        </div>
+
+        <div class="help-quick">
+          <div><span>主菜单</span><strong>图鉴 / 人数 / 模式 / 战场</strong></div>
+          <div><span>联机</span><strong>创建房间 / 房间码加入</strong></div>
+          <div><span>鼠标移动</span><strong>瞄准</strong></div>
+          <div><span>按住左键</span><strong>蓄力</strong></div>
+          <div><span>松开左键</span><strong>发射</strong></div>
+          <div><span>滚轮 / 方向键</span><strong>缩放 / 平移</strong></div>
+          <div><span>Q / E（流萤）</span><strong>左偏 / 右偏</strong></div>
+          <div><span>E（锚星）</span><strong>急停 / 二次瞄准</strong></div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="helpStartBtn" class="primary-btn compact" type="button">开始对局</button>
+          <button id="helpCloseBtn" class="ghost-btn compact" type="button">返回</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="codexScreen" class="modal-screen codex-screen" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card codex-card" role="dialog" aria-modal="true" aria-labelledby="codexTitle">
+        <button class="modal-close" id="codexClose" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+
+        <div class="codex-head">
+          <div class="modal-kicker">COIN CODEX</div>
+          <h2 id="codexTitle">硬币图鉴。</h2>
+          <p class="modal-lede">十一枚硬币，十一种专属能力。选择一枚查看它的特性，再带它上场。</p>
+        </div>
+
+        <div class="codex-layout">
+          <div id="codexList" class="codex-list" role="listbox" aria-label="硬币列表"></div>
+
+          <article class="codex-detail" aria-live="polite">
+            <div class="codex-detail-top">
+              <span class="codex-orb" id="codexOrb" aria-hidden="true"><b id="codexGlyph">●</b><i></i></span>
+              <div class="codex-detail-id">
+                <span class="codex-role" id="codexRole">均衡 · BALANCED</span>
+                <h3 id="codexName">金乌</h3>
+                <p id="codexTagline">蓄力 ≥75% 初速 +8%。</p>
+              </div>
+            </div>
+
+            <div class="codex-skill">
+              <span class="codex-skill-kicker">专属能力 / SIGNATURE</span>
+              <h4><span id="codexSkillName">熔芯</span><em id="codexSkillTag">蓄力强化</em></h4>
+              <p id="codexSkillDesc">蓄力达到 75% 或更高时，发射初速提高 8%。</p>
+            </div>
+
+            <div class="codex-metrics">
+              <div><span>质量</span><strong id="codexMass">1.00</strong></div>
+              <div><span>极速</span><strong id="codexSpeed">1490</strong></div>
+              <div><span>定位</span><strong id="codexRoleShort">均衡</strong></div>
+            </div>
+
+            <p class="codex-tip"><span>TIP</span><em id="codexTip">把力度压在高温区，用一记更远的直线穿过桌面。</em></p>
+          </article>
+        </div>
+
+        <div class="codex-actions">
+          <button id="codexSelectBtn" class="primary-btn compact" type="button">选择 金乌</button>
+          <button id="codexDone" class="ghost-btn compact" type="button">返回主菜单</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="inspectScreen" class="modal-screen inspect-screen" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card inspect-card" role="dialog" aria-modal="true" aria-labelledby="inspectTitle">
+        <button class="modal-close" id="inspectClose" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+
+        <div class="inspect-head">
+          <div class="modal-kicker">LIVE ROSTER</div>
+          <h2 id="inspectTitle">本局硬币。</h2>
+          <p class="modal-lede">对局已暂停。点击左侧任意硬币，查看它的专属能力、基础数据和本局状态。</p>
+        </div>
+
+        <div class="codex-layout">
+          <div id="inspectList" class="codex-list inspect-list" role="listbox" aria-label="本局硬币列表"></div>
+
+          <article class="codex-detail inspect-detail" aria-live="polite">
+            <div class="codex-detail-top">
+              <span class="codex-orb" id="inspectOrb" aria-hidden="true"><b id="inspectGlyph">●</b><i></i></span>
+              <div class="codex-detail-id">
+                <span class="codex-role" id="inspectRole">均衡 · BALANCED</span>
+                <h3 id="inspectName">金乌</h3>
+                <p id="inspectTagline">蓄力 ≥75% 初速 +8%。</p>
+              </div>
+            </div>
+
+            <div class="codex-skill">
+              <span class="codex-skill-kicker">专属能力 / SIGNATURE</span>
+              <h4><span id="inspectSkillName">熔芯</span><em id="inspectSkillTag">蓄力强化</em></h4>
+              <p id="inspectSkillDesc">蓄力达到 75% 或更高时，发射初速提高 8%。</p>
+            </div>
+
+            <div class="codex-metrics inspect-metrics">
+              <div><span>质量</span><strong id="inspectMass">1.00</strong></div>
+              <div><span>极速</span><strong id="inspectSpeed">1490</strong></div>
+              <div><span id="inspectOrderLabel">本局顺序</span><strong id="inspectOrder">01</strong></div>
+              <div><span>状态</span><strong id="inspectStatus">存活</strong></div>
+            </div>
+
+            <p class="codex-tip"><span>TIP</span><em id="inspectTip">把力度压在高温区，用一记更远的直线穿过桌面。</em></p>
+          </article>
+        </div>
+
+        <div class="codex-actions">
+          <button id="inspectResume" class="primary-btn compact" type="button">继续对局</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="arenaScreen" class="modal-screen" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card arena-card" role="dialog" aria-modal="true" aria-labelledby="arenaTitle">
+        <button class="modal-close" id="arenaClose" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+
+        <div class="arena-layout">
+          <div class="arena-settings">
+            <div class="modal-kicker">ARENA LAB</div>
+            <h2 id="arenaTitle">选择战场。</h2>
+            <p class="modal-lede">不同形状会改变碰撞线路；调整尺寸，或把部分直边改成墙壁。还可以加入固定/可推动障碍物，数量与形状自由组合。修改会立即保存。</p>
+
+            <div class="arena-section-label"><span>场地形状</span><small>SHAPE</small></div>
+            <div id="arenaShapes" class="shape-grid" role="group" aria-label="战场形状">
+              <button class="shape-option is-selected" data-shape="circle" type="button" aria-pressed="true">
+                <span class="shape-icon" aria-hidden="true"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="13.5"/></svg></span>
+                <strong>圆桌</strong><small>CIRCLE</small>
+              </button>
+              <button class="shape-option" data-shape="square" type="button" aria-pressed="false">
+                <span class="shape-icon" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="7" y="7" width="26" height="26" rx="1"/></svg></span>
+                <strong>方阵</strong><small>SQUARE</small>
+              </button>
+              <button class="shape-option" data-shape="hex" type="button" aria-pressed="false">
+                <span class="shape-icon" aria-hidden="true"><svg viewBox="0 0 40 40"><polygon points="20,5 33,12.5 33,27.5 20,35 7,27.5 7,12.5"/></svg></span>
+                <strong>六边</strong><small>HEXAGON</small>
+              </button>
+              <button class="shape-option" data-shape="octagon" type="button" aria-pressed="false">
+                <span class="shape-icon" aria-hidden="true"><svg viewBox="0 0 40 40"><polygon points="13,5 27,5 35,13 35,27 27,35 13,35 5,27 5,13"/></svg></span>
+                <strong>八边</strong><small>OCTAGON</small>
+              </button>
+              <button class="shape-option" data-shape="diamond" type="button" aria-pressed="false">
+                <span class="shape-icon" aria-hidden="true"><svg viewBox="0 0 40 40"><polygon points="20,5 35,20 20,35 5,20"/></svg></span>
+                <strong>菱阵</strong><small>DIAMOND</small>
+              </button>
+            </div>
+
+            <div class="arena-section-label"><span>场地大小</span><small>SIZE</small></div>
+            <div class="size-panel">
+              <div class="size-meta"><span>缩放倍率</span><strong id="arenaSizeValue">100%</strong></div>
+              <input id="arenaSizeRange" class="arena-range" type="range" min="70" max="300" step="5" value="100" aria-label="场地大小">
+              <div class="size-scale"><span>紧凑 70%</span><span>标准 100%</span><span>宽敞 300%</span></div>
+            </div>
+
+            <div class="arena-section-label"><span>边界墙</span><small>WALLS</small></div>
+            <div id="wallSection" class="wall-section">
+              <p id="wallHint" class="wall-hint">点击一条边将它变成墙壁；至少保留一条开放边。</p>
+              <div id="wallGrid" class="wall-grid" role="group" aria-label="边界墙"></div>
+            </div>
+
+            <div id="obstacleSection">
+              <div class="arena-section-label"><span>障碍物</span><small>OBSTACLES</small></div>
+              <div class="obstacle-panel">
+                <label class="obstacle-enable-row">
+                  <input id="obstacleEnabled" type="checkbox" checked>
+                  <span>启用障碍物</span>
+                  <em>取消勾选后本局不生成任何障碍物</em>
+                </label>
+                <div class="obstacle-count-head"><span>数量</span><strong id="obstacleCountValue">4</strong><small>0 – 12</small></div>
+                <input id="obstacleCountRange" class="arena-range" type="range" min="0" max="12" step="1" value="4" aria-label="障碍物数量">
+                <label class="obstacle-placement-row">
+                  <input id="obstacleCustomPlacement" type="checkbox">
+                  <span>手动摆放</span>
+                  <em>勾选后在右侧预览中拖动障碍物</em>
+                </label>
+                <div id="obstacleCustomPanel" class="obstacle-custom-panel" hidden>
+                  <div class="obstacle-count-head"><span>选中大小</span><strong id="obstacleSizeValue">8%</strong><small>2.5 – 18%</small></div>
+                  <input id="obstacleSizeRange" class="arena-range" type="range" min="2.5" max="18" step="0.5" value="8" aria-label="选中障碍物大小">
+                  <div class="obstacle-count-head"><span>旋转</span><strong id="obstacleRotationValue">0°</strong><small>0 – 360°</small></div>
+                  <input id="obstacleRotationRange" class="arena-range" type="range" min="0" max="360" step="1" value="0" aria-label="选中障碍物旋转角度">
+                  <p id="obstacleCustomHint" class="obstacle-hint">点击预览中的障碍物选中，拖动改变位置。</p>
+                </div>
+                <div class="obstacle-label"><span>类型</span><small>TYPE</small></div>
+                <div class="obstacle-toggle-row" role="group" aria-label="障碍物类型">
+                  <button class="obstacle-type-btn is-active" data-obstacle-type="fixed" type="button" aria-pressed="true">固定反弹</button>
+                  <button class="obstacle-type-btn is-active" data-obstacle-type="movable" type="button" aria-pressed="true">可推动</button>
+                </div>
+                <div class="obstacle-label"><span>形状</span><small>SHAPES</small></div>
+                <div class="obstacle-toggle-row obstacle-shape-row" role="group" aria-label="障碍物形状">
+                  <button class="obstacle-shape-btn is-active" data-obstacle-shape="circle" type="button" aria-pressed="true">圆形</button>
+                  <button class="obstacle-shape-btn is-active" data-obstacle-shape="square" type="button" aria-pressed="true">方形</button>
+                  <button class="obstacle-shape-btn is-active" data-obstacle-shape="rectangle" type="button" aria-pressed="true">长方形</button>
+                  <button class="obstacle-shape-btn is-active" data-obstacle-shape="triangle" type="button" aria-pressed="true">三角</button>
+                </div>
+                <p id="obstacleHint" class="obstacle-hint">固定障碍会像墙壁一样反弹；可推动障碍会被硬币撞走，并在滑动时撞开其他硬币。位置会在开局时随机生成。</p>
+              </div>
+            </div>
+
+            <div class="arena-section-label"><span>回合收缩</span><small>SUDDEN DEATH</small></div>
+            <div id="shrinkPanel" class="shrink-panel">
+              <div class="shrink-control">
+                <div class="shrink-meta"><span>回合上限</span><strong id="turnLimitValue">12 回合</strong></div>
+                <input id="turnLimitRange" class="arena-range" type="range" min="0" max="30" step="1" value="12" aria-label="回合上限">
+              </div>
+              <div id="shrinkRateControl" class="shrink-control">
+                <div class="shrink-meta"><span>收缩比例</span><strong id="shrinkRateValue">6%</strong></div>
+                <input id="shrinkRateRange" class="arena-range" type="range" min="2" max="15" step="1" value="6" aria-label="每回合收缩比例">
+              </div>
+              <p id="shrinkHint" class="shrink-hint">第 13 回合起，每回合边界向内收缩 6%。</p>
+            </div>
+
+            <div class="arena-actions">
+              <button id="arenaDone" class="primary-btn compact" type="button">完成</button>
+              <button id="arenaReset" class="ghost-btn compact" type="button">恢复默认</button>
+            </div>
+          </div>
+
+          <div class="arena-preview-panel">
+            <div class="arena-preview-head">
+              <span>LIVE PREVIEW</span>
+              <strong id="arenaSummary">圆桌 · 100%</strong>
+            </div>
+            <div class="arena-preview-frame">
+              <canvas id="arenaPreview" width="640" height="480" aria-label="战场预览"></canvas>
+            </div>
+            <p id="arenaDescription">边界连续，没有死角。碰撞后的滑行方向最难预测。</p>
+            <div class="arena-facts">
+              <div><span>边界</span><strong id="arenaEdgeType">连续无棱角</strong></div>
+              <div><span>空间</span><strong id="arenaSpace">标准</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="onlineScreen" class="modal-screen online-screen" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card online-card" role="dialog" aria-modal="true" aria-labelledby="onlineTitle">
+        <button class="modal-close" id="onlineClose" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <div class="modal-kicker">ONLINE ROOM</div>
+        <h2 id="onlineTitle">联机对战。</h2>
+        <p class="modal-lede">最多 8 人 · 轮流 / 齐射 · 可添加 AI · 未满 8 人也能开始。房主创建房间后复制邀请链接，朋友打开会自动加入；也可以使用房间码。</p>
+
+        <div id="onlineEntry" class="online-entry">
+          <div class="online-fields">
+            <label class="online-field">
+              <span>你的昵称</span>
+              <input id="onlineName" type="text" maxlength="12" autocomplete="nickname" placeholder="玩家">
+            </label>
+            <div class="online-coin-preview">
+              <span>你的硬币</span>
+              <strong><i id="onlineCoinOrb" aria-hidden="true"></i><b id="onlineCoinName">金乌</b></strong>
+              <small>进入房间后可更换</small>
+            </div>
+          </div>
+          <div class="online-entry-actions">
+            <button id="onlineCreate" class="primary-btn compact" type="button">创建房间</button>
+            <span class="online-or">或加入</span>
+            <div class="online-join-row">
+              <input id="onlineCode" type="text" maxlength="6" inputmode="text" autocomplete="off" placeholder="房间码" aria-label="房间码">
+              <button id="onlineJoin" class="ghost-btn compact" type="button">加入</button>
+            </div>
+          </div>
+          <p class="online-room-note">收到邀请链接可直接点开，会自动加入房间。房主的战场设置、房间模式与 AI 位置会一起同步。</p>
+          <p id="onlineError" class="online-error" role="alert"></p>
+        </div>
+
+        <div id="onlineRoom" class="online-room" hidden>
+          <div class="online-code-row">
+            <span>房间码</span>
+            <strong id="onlineRoomCode">-----</strong>
+            <button id="onlineShare" class="ghost-btn compact" type="button">复制邀请链接</button>
+            <button id="onlineCopy" class="ghost-btn compact" type="button">复制房间码</button>
+          </div>
+          <p class="online-share-hint">朋友打开邀请链接会自动加入；也可以把房间码发给他。</p>
+          <div class="online-mode-row">
+            <span>对局模式</span>
+            <div id="onlineModeSwitch" class="online-mode-switch" role="group" aria-label="房间对局模式">
+              <button type="button" data-mode="turn" aria-pressed="true">轮流</button>
+              <button type="button" data-mode="volley" aria-pressed="false">齐射</button>
+            </div>
+            <small id="onlineModeNote">轮流出手 · 每局顺序随机</small>
+          </div>
+          <div class="online-arena-row">
+            <span>地图设置</span>
+            <strong id="onlineArenaSummary">圆桌 · 100%</strong>
+            <button id="onlineArenaBtn" class="ghost-btn compact" type="button">修改地图</button>
+          </div>
+          <div class="online-arena-row online-pool-row">
+            <span>AI 性格池</span>
+            <strong id="onlinePoolSummary">全部 8 种</strong>
+            <button id="onlinePoolBtn" class="ghost-btn compact" type="button">配置性格</button>
+          </div>
+          <div id="onlineSlots" class="online-slots" aria-label="房间位置"></div>
+          <div id="onlineCoinPicker" class="online-coin-picker" hidden>
+            <div class="online-coin-picker-head">
+              <span id="onlineCoinPickerTitle">更换硬币</span>
+              <button id="onlineCoinPickerClose" class="ghost-btn compact" type="button">关闭</button>
+            </div>
+            <div id="onlineCoinOptions" class="online-coin-options" role="listbox" aria-label="可选硬币"></div>
+            <p id="onlineCoinPickerHint" class="online-coin-picker-hint">已被占用的硬币不可选择。</p>
+          </div>
+          <div class="online-room-meta">
+            <span id="onlineSlotCount">1 / 8 人</span>
+            <button id="onlineFillAI" class="ghost-btn compact" type="button">补齐 AI</button>
+          </div>
+          <p id="onlineRoomHint" class="online-room-hint">把房间码发给朋友，或给空位添加 AI，然后开始。</p>
+          <div class="online-room-actions">
+            <button id="onlineStart" class="primary-btn compact" type="button" disabled>等待对手</button>
+            <button id="onlineLeave" class="ghost-btn compact" type="button">离开房间</button>
+          </div>
+          <p id="onlineRoomError" class="online-error" role="alert"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="personalityPoolScreen" class="modal-screen persona-screen" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card persona-card" role="dialog" aria-modal="true" aria-labelledby="personalityPoolTitle">
+        <button class="modal-close" id="personalityPoolClose" type="button" aria-label="关闭">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <div class="modal-kicker">AI PERSONALITY POOL</div>
+        <h2 id="personalityPoolTitle">AI 性格池。</h2>
+        <p class="modal-lede">勾选本局允许出现的 AI 性格，至少保留一种；同一性格可以被多名 AI 重复获得。联机时以房主的设置生效。</p>
+        <div id="personalityPoolList" class="personality-pool-list" role="group" aria-label="允许出现的 AI 性格"></div>
+        <div class="personality-pool-actions">
+          <button id="personalityPoolAll" class="ghost-btn compact" type="button">全选</button>
+          <button id="personalityPoolDefault" class="ghost-btn compact" type="button">恢复默认</button>
+          <button id="personalityPoolDone" class="primary-btn compact" type="button">完成</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="aiPersonaScreen" class="modal-screen persona-screen" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card persona-card" role="dialog" aria-modal="true" aria-labelledby="aiPersonaTitle">
+        <button class="modal-close" id="aiPersonaClose" type="button" aria-label="关闭">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <div class="modal-kicker">AI PERSONALITIES</div>
+        <h2 id="aiPersonaTitle">AI 性格。</h2>
+        <p class="modal-lede">每名 AI 随机获得一种性格，允许重复；联机对局中由房主统一分配，查看时不会暂停比赛。</p>
+        <div id="aiPersonaList" class="persona-list" role="list"></div>
+        <div class="persona-actions">
+          <button id="aiPersonaDone" class="primary-btn compact" type="button">继续对局</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="quitScreen" class="modal-screen quit-screen" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card quit-card" role="dialog" aria-modal="true" aria-labelledby="quitTitle">
+        <div class="modal-kicker">LEAVE MATCH</div>
+        <h2 id="quitTitle">退出这局？</h2>
+        <p id="quitDesc" class="quit-desc">当前对局进度不会保存，确认后会回到主菜单。</p>
+        <div class="quit-actions">
+          <button id="quitCancel" class="ghost-btn" type="button">继续对局</button>
+          <button id="quitConfirm" class="primary-btn" type="button">退出到主菜单</button>
+        </div>
+        <p class="quit-foot"><span>Esc</span> 继续对局</p>
+      </div>
+    </section>
+
+    <section id="gameoverScreen" class="modal-screen result-screen" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+        <div class="result-glow" aria-hidden="true"></div>
+        <div class="result-topline">
+          <span id="resultKicker">MATCH COMPLETE</span>
+          <span id="resultTime">00:00</span>
+        </div>
+        <div class="result-emblem" id="resultEmblem" aria-hidden="true">
+          <span class="emblem-ring"></span>
+          <span class="emblem-core"></span>
+        </div>
+        <div class="result-copy">
+          <p id="resultEyebrow">最后留在桌上</p>
+          <h2 id="resultTitle">胜利</h2>
+          <p id="resultSub">你把所有对手都送出了边界。</p>
+        </div>
+        <div class="result-stats">
+          <div><span>击飞出局</span><strong id="statKOs">0</strong></div>
+          <div><span>碰撞次数</span><strong id="statHits">0</strong></div>
+          <div><span>最高时速</span><strong id="statSpeed">0</strong></div>
+          <div><span>总用时</span><strong id="statTime">00:00</strong></div>
+        </div>
+        <div class="result-actions">
+          <button id="returnRoomBtn" class="ghost-btn" type="button" hidden>
+            <span>返回房间</span>
+          </button>
+          <button id="playAgainBtn" class="primary-btn" type="button">
+            <span>再来一局</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+          <button id="backToMenuBtn" class="ghost-btn" type="button">返回主菜单</button>
+        </div>
+        <div class="result-foot"><span>R</span> 快速重开 <i></i> <span>ESC</span> 返回菜单</div>
+      </div>
+    </section>
+
+    <div id="startBanner" class="start-banner" aria-hidden="true">
+      <span class="banner-kicker">ROUND 01</span>
+      <strong>你的回合</strong>
+      <small>移动鼠标瞄准 · 按住左键蓄力</small>
+    </div>
+
+    <div id="roundFlash" class="round-flash" aria-hidden="true"></div>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>

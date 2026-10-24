@@ -1,0 +1,12 @@
+{
+  "name": "edge-coin-online",
+  "version": "2.21.0",
+  "private": true,
+  "description": "EDGE//COIN online multiplayer server and static client",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

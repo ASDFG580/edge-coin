@@ -1,0 +1,7 @@
+dist/
+.shots/
+.edge-profile*/
+.deploy/
+node_modules/
+*.zip
+*.log
